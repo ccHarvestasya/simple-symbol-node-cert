@@ -1,7 +1,13 @@
 {
   "name": "simple-symbol-node-cert",
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "packageManager": "yarn@4.1.1",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
   "devDependencies": {
     "@types/eslint": "^9",
     "@types/node": "^22.0.0",
