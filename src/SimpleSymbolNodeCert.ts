@@ -66,6 +66,9 @@ export class SimpleSymbolNodeCert {
   public renew(certDir: string = './cert') {
     const inputDir = resolve(certDir)
 
+    // OpenSSLバージョンチェック
+    this.checkVersionOpenSsl()
+
     const caPriKeyFileName = 'ca.key.pem'
     const caPriKeyPath = join(inputDir, caPriKeyFileName)
     const nodePriKeyFileName = 'node.key.pem'
@@ -77,7 +80,7 @@ export class SimpleSymbolNodeCert {
     this.createCaCertificate(inputDir, caPriKeyPath, 7300)
     this.createNodeCsr(inputDir, nodePriKeyFileName)
     this.signingCertificate(inputDir, 3750)
-
+    // 証明書連結
     this.createSymbolNodeCert(inputDir)
   }
 
@@ -87,6 +90,9 @@ export class SimpleSymbolNodeCert {
    */
   public info(certDir: string = './cert') {
     const inputDir = resolve(certDir)
+
+    // OpenSSLバージョンチェック
+    this.checkVersionOpenSsl()
 
     let certInfo
     try {
@@ -138,6 +144,10 @@ export class SimpleSymbolNodeCert {
     console.log(`==================================================`)
   }
 
+  /**
+   * Symbolノード証明書作成
+   * @param outputDir 出力ディレクトリ
+   */
   private createSymbolNodeCert(outputDir: string) {
     const caCertFileName = 'ca.crt.pem'
     const nodeCertFileName = 'node.crt.pem'
