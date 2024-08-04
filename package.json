@@ -1,5 +1,6 @@
 {
   "name": "simple-symbol-node-cert",
+  "version": "0.0.1",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,6 +31,5 @@
   "volta": {
     "node": "18.19.1",
     "npm": "10.2.4"
-  },
-  "version": "0.0.1"
+  }
 }
