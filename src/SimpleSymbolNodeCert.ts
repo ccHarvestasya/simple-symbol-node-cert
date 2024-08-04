@@ -1,146 +1,202 @@
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
+import { SymbolNodePrivatekeys } from './SymbolNodePrivatekeys.js'
+import { Address, Network, SymbolFacade } from 'symbol-sdk/symbol'
+import { PublicKey } from 'symbol-sdk'
 
 export class SimpleSymbolNodeCert {
   /**
    * Symbolノード証明書発行
-   * @param certDir 証明書出力ディレクトリ
+   * @param certDirPath 証明書出力ディレクトリ
    * @param caName CA名
-   * @param nodeName ノード名
-   * @param days 有効日数
-   * @param isForce 上書出力
+   * @param nodeName Node名
+   * @param caCertDays CA証明書有効日数
+   * @param nodeCertDays Node証明書有効日数
+   * @param isForce 上書出力フラグ
+   * @param privatekeysFilePath privatekeysファイルパス
+   * @param passwd privatekeysファイル暗号化パスワード
    */
   public generate(
-    certDir: string = './cert',
+    certDirPath: string = './cert',
     caName: string = 'my cool CA',
     nodeName: string = 'my cool node name',
-    days: number = 375,
-    isForce: boolean = false
+    caCertDays: number = 7300,
+    nodeCertDays: number = 375,
+    isForce: boolean = false,
+    privatekeysFilePath: string = './privatekeys.yaml',
+    passwd: string = ''
   ) {
-    const outputDir = resolve(certDir)
+    /** 有効日数チェック */
+    if (caCertDays < nodeCertDays) throw Error('CA証明書の有効日数がNode証明書の有効日数より小さいです。')
 
-    // OpenSSLバージョンチェック
+    /** OpenSSLバージョンチェック */
     this.checkVersionOpenSsl()
 
-    // 出力ディレクトリ作成
-    if (existsSync(outputDir)) {
-      if (isForce) {
-        rmSync(outputDir, { recursive: true })
-      } else {
-        throw Error('output directory already exists')
-      }
-    }
-    mkdirSync(outputDir, { recursive: true })
-
-    console.log(`  CA common name: ${caName}`)
-    console.log(`Node common name: ${nodeName}`)
-
-    // 秘密鍵生成
+    /** パス取得 */
+    const certDirPathAbs = resolve(certDirPath)
+    const privatekeysFilePathAbs = resolve(privatekeysFilePath)
     const caPriKeyFileName = 'ca.key.pem'
-    this.generatePrivateKey(outputDir, caPriKeyFileName)
     const nodePriKeyFileName = 'node.key.pem'
-    this.generatePrivateKey(outputDir, nodePriKeyFileName)
-
-    // 設定ファイル作成
-    const caPriKeyPath = join(outputDir, caPriKeyFileName)
-    this.createCaConfig(outputDir, caName, caPriKeyPath)
-    this.createNodeConfig(outputDir, nodeName)
-
-    // 公開鍵生成
+    const caPriKeyFilePathAbs = join(certDirPathAbs, caPriKeyFileName)
+    const nodePriKeyFilePathAbs = join(certDirPathAbs, nodePriKeyFileName)
     const pubKeyFileName = 'ca.pubkey.pem'
-    this.generatePublicKey(outputDir, caPriKeyPath, pubKeyFileName)
+    const pubKeyFilePathAbs = join(certDirPathAbs, pubKeyFileName)
 
-    // 証明書作成
-    this.createCaCertificate(outputDir, caPriKeyPath, days)
-    this.createNodeCsr(outputDir, nodePriKeyFileName)
-    this.signingCertificate(outputDir, days)
+    /** 出力ディレクトリ作成 */
+    if (existsSync(certDirPathAbs)) {
+      if (!isForce) throw Error(`証明書出力ディレクトリがすでに存在します。: ${certDirPathAbs}`)
+      rmSync(certDirPathAbs, { recursive: true })
+    }
+    mkdirSync(certDirPathAbs, { recursive: true })
+
+    /** privatekeysファイルチェック */
+    if (existsSync(privatekeysFilePathAbs)) {
+      // 存在する場合秘密鍵を復元
+      const snp = new SymbolNodePrivatekeys()
+      snp.decryptPrivateKey(privatekeysFilePathAbs, caPriKeyFilePathAbs, nodePriKeyFilePathAbs, passwd)
+    }
+
+    /** 秘密鍵生成 */
+    if (!existsSync(caPriKeyFilePathAbs)) this.generatePrivateKey(caPriKeyFilePathAbs)
+    if (!existsSync(nodePriKeyFilePathAbs)) this.generatePrivateKey(nodePriKeyFilePathAbs)
+
+    /** 設定ファイル作成 */
+    this.createCaConfig(certDirPathAbs, caName, caPriKeyFilePathAbs)
+    this.createNodeConfig(certDirPathAbs, nodeName)
+
+    /** 公開鍵生成 */
+    this.generatePublicKey(caPriKeyFilePathAbs, pubKeyFilePathAbs)
+
+    /** 証明書作成 */
+    this.createCaCertificate(certDirPathAbs, caPriKeyFilePathAbs, caCertDays)
+    this.createNodeCsr(certDirPathAbs, nodePriKeyFileName)
+    this.signingCertificate(certDirPathAbs, nodeCertDays)
     // 証明書連結
-    this.createSymbolNodeCert(outputDir)
+    this.createSymbolNodeCert(certDirPathAbs)
   }
 
   /**
    * Symbolノード証明書の期限を更新する
-   * @param certDir 証明書ディレクトリ
+   * @param certDirPath 証明書出力ディレクトリ
+   * @param caCertDays CA証明書有効日数
+   * @param nodeCertDays Node証明書有効日数
+   * @param privatekeysFilePath privatekeysファイルパス
+   * @param passwd privatekeysファイル暗号化パスワード
    */
-  public renew(certDir: string = './cert') {
-    const inputDir = resolve(certDir)
+  public renew(
+    certDirPath: string = './cert',
+    caCertDays: number = 7300,
+    nodeCertDays: number = 375,
+    privatekeysFilePath: string = './privatekeys.yaml',
+    passwd: string = ''
+  ) {
+    /** 有効日数チェック */
+    if (caCertDays < nodeCertDays) throw Error('CA証明書の有効日数がNode証明書の有効日数より小さいです。')
 
-    // OpenSSLバージョンチェック
+    /** OpenSSLバージョンチェック */
     this.checkVersionOpenSsl()
 
+    /** パス取得 */
+    const certDirPathAbs = resolve(certDirPath)
+    const privatekeysFilePathAbs = resolve(privatekeysFilePath)
     const caPriKeyFileName = 'ca.key.pem'
-    const caPriKeyPath = join(inputDir, caPriKeyFileName)
     const nodePriKeyFileName = 'node.key.pem'
+    const caPriKeyFilePathAbs = join(certDirPathAbs, caPriKeyFileName)
+    const nodePriKeyFilePathAbs = join(certDirPathAbs, nodePriKeyFileName)
 
-    // 古いデータベース削除
-    this.revokeCertificate(inputDir)
+    /** 出力ディレクトリ作成 */
+    if (!existsSync(certDirPathAbs)) {
+      throw Error(`証明書出力ディレクトリが存在しません。: ${certDirPathAbs}`)
+    }
 
-    // 証明書作成
-    this.createCaCertificate(inputDir, caPriKeyPath, 7300)
-    this.createNodeCsr(inputDir, nodePriKeyFileName)
-    this.signingCertificate(inputDir, 3750)
+    /** privatekeysファイルチェック */
+    if (existsSync(privatekeysFilePathAbs)) {
+      // 存在する場合秘密鍵を復元
+      const snp = new SymbolNodePrivatekeys()
+      snp.decryptPrivateKey(privatekeysFilePathAbs, caPriKeyFilePathAbs, nodePriKeyFilePathAbs, passwd)
+    } else {
+      throw Error(`ファイルが存在しないため秘密鍵が復元できません。: ${privatekeysFilePathAbs}`)
+    }
+
+    /** 秘密鍵チェック */
+    if (!existsSync(caPriKeyFilePathAbs)) throw Error(`CA秘密鍵が存在しません。: ${caPriKeyFilePathAbs}`)
+    if (!existsSync(nodePriKeyFilePathAbs)) throw Error(`Node秘密鍵が存在しません。: ${nodePriKeyFilePathAbs}`)
+
+    /** 古いデータベース削除 */
+    this.revokeCertificate(certDirPathAbs)
+
+    /** 証明書作成 */
+    this.createCaCertificate(certDirPathAbs, caPriKeyFilePathAbs, caCertDays)
+    this.createNodeCsr(certDirPathAbs, nodePriKeyFileName)
+    this.signingCertificate(certDirPathAbs, nodeCertDays)
     // 証明書連結
-    this.createSymbolNodeCert(inputDir)
+    this.createSymbolNodeCert(certDirPathAbs)
   }
 
   /**
    * Symbolノード証明書の期限と公開鍵表示
-   * @param certDir 証明書ディレクトリ
+   * @param certDirPath 証明書ディレクトリパス
    */
-  public info(certDir: string = './cert') {
-    const inputDir = resolve(certDir)
-
-    // OpenSSLバージョンチェック
+  public info(certDirPath: string = './cert') {
+    /** OpenSSLバージョンチェック */
     this.checkVersionOpenSsl()
 
-    let certInfo
-    try {
-      certInfo = execSync(
-        `openssl crl2pkcs7 -nocrl -certfile node.full.crt.pem` +
-          ` | openssl pkcs7 -print_certs -text -noout`,
-        {
-          cwd: inputDir,
-        }
-      )
-    } catch {
-      throw Error('openssl execution failure')
-    }
+    /** パス取得 */
+    const certDirPathAbs = resolve(certDirPath)
 
-    // 開始日
+    const certInfo = execSync(
+      `openssl crl2pkcs7 -nocrl -certfile node.full.crt.pem | openssl pkcs7 -print_certs -text -noout`,
+      {
+        cwd: certDirPathAbs,
+      }
+    )
+
+    /** 開始日 */
     const startDates: Date[] = []
     const startDateMatches = certInfo.toString().matchAll(/Not Before: (.*)/g)
     for (const match of startDateMatches) {
       startDates.push(new Date(match[1]))
     }
-    // 終了日
+    /** 終了日 */
     const endDates: Date[] = []
     const endDateMatches = certInfo.toString().matchAll(/Not After : (.*)/g)
     for (const match of endDateMatches) {
       endDates.push(new Date(match[1]))
     }
-    // 公開鍵
+    /** 公開鍵 */
     const publicKeys: string[] = []
     const publicKeyMatches = certInfo
       .toString()
-      .matchAll(
-        /pub:[\r\n|\n|\r]\s+(.*)[\r\n|\n|\r]\s+(.*)[\r\n|\n|\r]\s+(.*)/g
-      )
+      .matchAll(/pub:[\r\n|\n|\r]\s+(.*)[\r\n|\n|\r]\s+(.*)[\r\n|\n|\r]\s+(.*)/g)
     for (const match of publicKeyMatches) {
       let pubKey = match[1] + match[2] + match[3]
       pubKey = pubKey.replaceAll(':', '')
       publicKeys.push(pubKey.toUpperCase())
     }
+    /** アドレス */
+    const mainFacade = new SymbolFacade(Network.MAINNET)
+    const testFacade = new SymbolFacade(Network.TESTNET)
+    // Node
+    const mainCaAddress = new Address(mainFacade.network.publicKeyToAddress(new PublicKey(publicKeys[0]))).toString()
+    const testCaAddress = new Address(testFacade.network.publicKeyToAddress(new PublicKey(publicKeys[0]))).toString()
+    // CA
+    const mainNodeAddress = new Address(mainFacade.network.publicKeyToAddress(new PublicKey(publicKeys[1]))).toString()
+    const testNodeAddress = new Address(testFacade.network.publicKeyToAddress(new PublicKey(publicKeys[1]))).toString()
 
     console.log(`==================================================`)
     console.log(`CA Cert:`)
-    console.log(`  Start Date: ${startDates[0]}`)
-    console.log(`    End Date: ${endDates[0]}`)
-    console.log(`  Public Key: ${publicKeys[0]}`)
+    console.log(`       Start Date: ${startDates[1]}`)
+    console.log(`         End Date: ${endDates[1]}`)
+    console.log(`       Public Key: ${publicKeys[1]}`)
+    console.log(`  Mainnet Address: ${mainNodeAddress}`)
+    console.log(`  Testnet Address: ${testNodeAddress}`)
     console.log(`Node Cert:`)
-    console.log(`  Start Date: ${startDates[1]}`)
-    console.log(`    End Date: ${endDates[1]}`)
-    console.log(`  Public Key: ${publicKeys[1]}`)
+    console.log(`       Start Date: ${startDates[0]}`)
+    console.log(`         End Date: ${endDates[0]}`)
+    console.log(`       Public Key: ${publicKeys[0]}`)
+    console.log(`  Mainnet Address: ${mainCaAddress}`)
+    console.log(`  Testnet Address: ${testCaAddress}`)
     console.log(`==================================================`)
   }
 
@@ -164,6 +220,8 @@ export class SimpleSymbolNodeCert {
    * @param nodeName ノード名
    */
   private createNodeConfig(outputDir: string, nodeName: string) {
+    console.log('Node Config 作成')
+
     const nodeConfig = `[req]
 prompt = no
 distinguished_name = dn
@@ -171,7 +229,7 @@ distinguished_name = dn
 CN = ${nodeName}
 `
     const configPath = join(outputDir, 'node.cnf')
-    writeFileSync(configPath, nodeConfig)
+    this.writeFile(configPath, nodeConfig)
   }
 
   /**
@@ -180,11 +238,9 @@ CN = ${nodeName}
    * @param caName CA名
    * @param caPriKeyPath 秘密鍵ファイルパス
    */
-  private createCaConfig(
-    outputDir: string,
-    caName: string,
-    caPriKeyPath: string
-  ) {
+  private createCaConfig(outputDir: string, caName: string, caPriKeyPath: string) {
+    console.log('CA Config 作成')
+
     const privateKeyPathEsc = caPriKeyPath.replaceAll('\\', '\\\\')
 
     const caConfig = `[ca]
@@ -210,37 +266,36 @@ distinguished_name = dn
 CN = ${caName}
 `
     const configPath = join(outputDir, 'ca.cnf')
-    writeFileSync(configPath, caConfig)
+    this.writeFile(configPath, caConfig)
 
     const indexPath = join(outputDir, 'index.txt')
-    writeFileSync(indexPath, '')
+    this.writeFile(indexPath, '')
 
     const newCertsDirPath = join(outputDir, 'new_certs')
-    mkdirSync(newCertsDirPath, { recursive: true })
+    this.makeDir(newCertsDirPath)
   }
 
   /**
    * CA証明書作成
    * @param outputDir 出力ディレクトリ
-   * @param priKeyPath 秘密鍵
+   * @param privatekeyPath 秘密鍵ファイルパス
    * @param days 有効日数
    */
-  private createCaCertificate(
-    outputDir: string,
-    priKeyPath: string,
-    days: number = 7300
-  ) {
-    console.log('creating CA certificate')
-    try {
-      execSync(
-        `openssl req -config ca.cnf -keyform PEM -key ${priKeyPath} -new -x509 -days ${days} -out ca.crt.pem`,
-        {
-          cwd: outputDir,
-        }
-      )
-    } catch {
-      throw Error('openssl execution failure')
-    }
+  private createCaCertificate(outputDir: string, privatekeyPath: string, days: number = 7300) {
+    console.log('CA証明書作成')
+    execSync(
+      `openssl req ` +
+        `-config ca.cnf ` +
+        `-keyform PEM ` +
+        `-key ${privatekeyPath} ` +
+        `-new ` +
+        `-x509 ` +
+        `-days ${days} ` +
+        `-out ca.crt.pem`,
+      {
+        cwd: outputDir,
+      }
+    )
   }
 
   /**
@@ -249,21 +304,10 @@ CN = ${caName}
    * @param priKeyPath 秘密鍵
    */
   private createNodeCsr(outputDir: string, priKeyPath: string) {
-    console.log('preparing node CSR')
-    try {
-      execSync(
-        'openssl req ' +
-          '-config node.cnf ' +
-          `-key ${priKeyPath} ` +
-          '-new ' +
-          '-out node.csr.pem ',
-        {
-          cwd: outputDir,
-        }
-      )
-    } catch {
-      throw Error('openssl execution failure')
-    }
+    console.log('ノードCSR作成')
+    execSync(`openssl req -config node.cnf -key ${priKeyPath} -new -out node.csr.pem`, {
+      cwd: outputDir,
+    })
   }
 
   /**
@@ -272,23 +316,22 @@ CN = ${caName}
    * @param days 有効日数
    */
   private signingCertificate(outputDir: string, days: number = 375) {
-    console.log('signing node certificate')
-    try {
-      execSync('openssl rand -out ./serial.dat -hex 19', {
+    console.log('Node証明書署名')
+    execSync('openssl rand -out ./serial.dat -hex 19', {
+      cwd: outputDir,
+    })
+    execSync(
+      `openssl ca ` +
+        `-config ca.cnf ` +
+        `-days ${days} ` +
+        `-notext ` +
+        `-batch ` +
+        `-in node.csr.pem ` +
+        `-out node.crt.pem`,
+      {
         cwd: outputDir,
-      })
-      execSync(
-        `openssl ca -config ca.cnf -days ${days} -notext -batch ` +
-          '-in node.csr.pem ' +
-          '-out node.crt.pem',
-        {
-          cwd: outputDir,
-        }
-      )
-    } catch (e) {
-      console.error(e)
-      throw Error('openssl execution failure')
-    }
+      }
+    )
   }
 
   /**
@@ -296,55 +339,32 @@ CN = ${caName}
    * @param workDir 作業ディレクトリ
    */
   private revokeCertificate(workDir: string) {
-    console.log('revoke node certificate')
-    try {
-      execSync(`openssl ca -config ca.cnf -revoke node.crt.pem`, {
-        cwd: workDir,
-      })
-    } catch (e) {
-      console.error(e)
-    }
+    console.log('Node証明書失効')
+    execSync(`openssl ca -config ca.cnf -revoke node.crt.pem`, {
+      cwd: workDir,
+    })
   }
 
   /**
    * 公開鍵生成
-   * @param outputDir 出力ディレクトリ
-   * @param priKeyPath 秘密鍵ファイルパス
-   * @param pubKeyFileName 公開鍵ファイル名
+   * @param privatekeyPath 秘密鍵ファイルパス
+   * @param publickeyPath 公開鍵ファイルパス
    */
-  private generatePublicKey(
-    outputDir: string,
-    priKeyPath: string,
-    pubKeyFileName: string
-  ) {
-    console.log(`creating ${pubKeyFileName}`)
-    try {
-      execSync(
-        `openssl pkey -in ${priKeyPath} -out ${pubKeyFileName} -pubout`,
-        {
-          cwd: outputDir,
-        }
-      )
-    } catch {
-      throw Error('openssl execution failure')
-    }
+  private generatePublicKey(privatekeyPath: string, publickeyPath: string) {
+    console.log(`公開鍵作成`)
+    execSync(`openssl pkey ` + `-in ${privatekeyPath} ` + `-out ${publickeyPath} ` + `-pubout`)
   }
 
   /**
    * 秘密鍵生成
    * @param outputDir 出力ディレクトリ
-   * @param priKeyFileName 秘密鍵ファイル名
+   * @param privatekeyFilePath 秘密鍵ファイル名
    */
-  private generatePrivateKey(outputDir: string, priKeyFileName: string) {
-    console.log(`creating ${priKeyFileName}`)
-    try {
-      execSync(
-        `openssl genpkey -algorithm ed25519 -outform PEM -out ${priKeyFileName}`,
-        { cwd: outputDir }
-      )
-    } catch {
-      throw Error('openssl execution failure')
-    }
+  private generatePrivateKey(privatekeyFilePath: string) {
+    console.log(`秘密鍵生成`)
+    execSync(`openssl genpkey ` + `-algorithm ed25519 ` + `-outform PEM ` + `-out ${privatekeyFilePath}`)
+    // パーミッション変更
+    chmodSync(privatekeyFilePath, 0o600)
   }
 
   /**
@@ -360,8 +380,35 @@ CN = ${caName}
     }
     const regex = /^OpenSSL +([^ ]*) /
     const match = versionOutput.match(regex)
-    if (match === null || match[1] <= '1.1.1') {
-      throw Error('requires openssl version >=1.1.1')
+    const reqVer = '3.2.1'
+    if (match === null || match[1] <= reqVer) {
+      // console.log('Windowsの場合 -> https://slproweb.com/products/Win32OpenSSL.html')
+      throw Error(`requires openssl version >=${reqVer}`)
+    }
+  }
+
+  /**
+   * ファイルの書き込み
+   * @param filePath ファイルパス
+   * @param fileData ファイルデータ
+   */
+  private writeFile(filePath: string, fileData: string) {
+    try {
+      writeFileSync(filePath, fileData)
+    } catch {
+      throw Error(`ファイルの保存に失敗しました。: ${filePath}`)
+    }
+  }
+
+  /**
+   * ディレクトリの作成
+   * @param dirPath ディレクトリパス
+   */
+  private makeDir(dirPath: string) {
+    try {
+      mkdirSync(dirPath, { recursive: true })
+    } catch {
+      throw Error(`ディレクトリの作成に失敗しました。: ${dirPath}`)
     }
   }
 }

@@ -15,3 +15,7 @@
 /node_modules
 /dist
 /cert
+
+gen.ts
+renew.ts
+info.ts
