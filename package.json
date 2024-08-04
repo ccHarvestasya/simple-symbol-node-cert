@@ -1,6 +1,11 @@
 {
   "name": "simple-symbol-node-cert",
   "version": "0.0.1",
+  "author": "Mimosa Harvestasya @MimosaHrvsty",
+  "license": "MIT",
+  "homepage": "https://github.com/ccHarvestasya/simple-symbol-node-cert",
+  "bugs": "https://github.com/ccHarvestasya/simple-symbol-node-cert/issues",
+  "repository": "ccHarvestasya/simple-symbol-node-cert",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
