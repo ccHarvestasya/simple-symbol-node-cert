@@ -114,9 +114,9 @@ export class SimpleSymbolNodeCert {
     }
 
     /** privatekeysファイルチェック */
+    const snp = new SymbolNodePrivatekeys()
     if (existsSync(privatekeysFilePathAbs)) {
       // 存在する場合秘密鍵を復元
-      const snp = new SymbolNodePrivatekeys()
       snp.decryptPrivateKey(privatekeysFilePathAbs, caPriKeyFilePathAbs, nodePriKeyFilePathAbs, passwd)
     } else {
       throw Error(`ファイルが存在しないため秘密鍵が復元できません。: ${privatekeysFilePathAbs}`)
@@ -135,6 +135,9 @@ export class SimpleSymbolNodeCert {
     this.signingCertificate(certDirPathAbs, nodeCertDays)
     // 証明書連結
     this.createSymbolNodeCert(certDirPathAbs)
+
+    /** privatekeysファイル保存 */
+    snp.encryptPrivateKey(privatekeysFilePathAbs, caPriKeyFilePathAbs, nodePriKeyFilePathAbs, passwd)
   }
 
   /**
