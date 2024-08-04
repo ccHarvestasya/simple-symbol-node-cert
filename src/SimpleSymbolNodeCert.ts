@@ -383,7 +383,7 @@ CN = ${caName}
     }
     const regex = /^OpenSSL +([^ ]*) /
     const match = versionOutput.match(regex)
-    const reqVer = '3.2.1'
+    const reqVer = '3.0.2'
     if (match === null || match[1] <= reqVer) {
       // console.log('Windowsの場合 -> https://slproweb.com/products/Win32OpenSSL.html')
       throw Error(`requires openssl version >=${reqVer}`)
