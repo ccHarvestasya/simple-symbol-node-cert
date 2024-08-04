@@ -51,9 +51,9 @@ export class SimpleSymbolNodeCert {
     mkdirSync(certDirPathAbs, { recursive: true })
 
     /** privatekeysファイルチェック */
+    const snp = new SymbolNodePrivatekeys()
     if (existsSync(privatekeysFilePathAbs)) {
       // 存在する場合秘密鍵を復元
-      const snp = new SymbolNodePrivatekeys()
       snp.decryptPrivateKey(privatekeysFilePathAbs, caPriKeyFilePathAbs, nodePriKeyFilePathAbs, passwd)
     }
 
@@ -74,6 +74,9 @@ export class SimpleSymbolNodeCert {
     this.signingCertificate(certDirPathAbs, nodeCertDays)
     // 証明書連結
     this.createSymbolNodeCert(certDirPathAbs)
+
+    /** privatekeysファイル保存 */
+    snp.encryptPrivateKey(privatekeysFilePathAbs, caPriKeyFilePathAbs, nodePriKeyFilePathAbs, passwd)
   }
 
   /**
