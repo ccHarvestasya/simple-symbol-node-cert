@@ -358,7 +358,7 @@ CN = ${caName}
    */
   private generatePublicKey(privatekeyPath: string, publickeyPath: string) {
     console.log(`公開鍵作成`)
-    execSync(`openssl pkey ` + `-in ${privatekeyPath} ` + `-out ${publickeyPath} ` + `-pubout`)
+    execSync(`openssl pkey -in ${privatekeyPath} -out ${publickeyPath} -pubout`)
   }
 
   /**
@@ -368,7 +368,7 @@ CN = ${caName}
    */
   private generatePrivateKey(privatekeyFilePath: string) {
     console.log(`秘密鍵生成`)
-    execSync(`openssl genpkey ` + `-algorithm ed25519 ` + `-outform PEM ` + `-out ${privatekeyFilePath}`)
+    execSync(`openssl genpkey -algorithm ed25519 -outform PEM -out ${privatekeyFilePath}`)
     // パーミッション変更
     chmodSync(privatekeyFilePath, 0o600)
   }
@@ -386,10 +386,11 @@ CN = ${caName}
     }
     const regex = /^OpenSSL +([^ ]*) /
     const match = versionOutput.match(regex)
-    const reqVer = '3.0.2'
-    if (match === null || match[1] < reqVer) {
+    const reqMinVer = '1.1.0'
+    const reqMaxVer = '3.2.0'
+    if (match === null || (reqMinVer >= match[1] && match[1] >= reqMaxVer)) {
       // console.log('Windowsの場合 -> https://slproweb.com/products/Win32OpenSSL.html')
-      throw Error(`requires openssl version >=${reqVer}`)
+      throw Error(`requires openssl version: ${reqMinVer} < ver < ${reqMaxVer}`)
     }
   }
 
