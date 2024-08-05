@@ -1,4 +1,4 @@
-import { chmodSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { Crypto } from './Crypto.js'
 import { dump, load } from 'js-yaml'
 import { PrivatekeysYaml } from './ModelPrivatekeysYaml.js'
@@ -66,7 +66,8 @@ export class SymbolNodePrivatekeys {
 
     // 秘密鍵削除
     this.deleteFile(caPriKeyPath)
-    this.deleteFile(nodePriKeyPath)
+    // Node秘密鍵はソケット通信で使用するので削除しない
+    // this.deleteFile(nodePriKeyPath)
   }
 
   /**
@@ -113,7 +114,9 @@ export class SymbolNodePrivatekeys {
 
     /** 秘密鍵書き込み */
     if (caPriKeyBase64 !== '') this.writePrivatekey(caPriKeyPath, caPriKeyBase64)
-    if (nodePriKeyBase64 !== '') this.writePrivatekey(nodePriKeyPath, nodePriKeyBase64)
+    if (!existsSync(nodePriKeyPath)) {
+      if (nodePriKeyBase64 !== '') this.writePrivatekey(nodePriKeyPath, nodePriKeyBase64)
+    }
   }
 
   /**

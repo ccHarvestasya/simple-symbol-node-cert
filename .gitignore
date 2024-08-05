@@ -14,9 +14,9 @@
 
 /node_modules
 /dist
-/cert
+/cert*
 
 gen.ts
 renew.ts
 info.ts
-privatekeys.yaml
+privatekeys*.yaml
