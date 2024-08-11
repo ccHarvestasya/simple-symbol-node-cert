@@ -8,6 +8,130 @@ import { PublicKey } from 'symbol-sdk'
 
 export class SymbolNodePrivatekeys {
   /**
+   * 秘密鍵暗号化
+   * @param inPrivatekyesPath 入力秘密鍵保存ファイル
+   * @param outPrivatekyesPath 出力秘密鍵保存ファイル
+   * @param passwd パスワード
+   */
+  encrypt(inPrivatekyesPath: string, outPrivatekyesPath: string, passwd: string) {
+    /** privatekeysファイル読み込み */
+    let privatekeysYaml: PrivatekeysYaml
+    try {
+      const privatekeys = readFileSync(inPrivatekyesPath)
+      privatekeysYaml = load(privatekeys.toString()) as PrivatekeysYaml
+    } catch {
+      throw Error(`ファイルの読み込みに失敗しました。： ${inPrivatekyesPath}`)
+    }
+
+    /** 秘密鍵暗号化 */
+    // CA
+    const caPriKeyHex = privatekeysYaml.main?.privateKey
+    const caPriKeyEnc = caPriKeyHex ? Crypto.encrypt(caPriKeyHex, passwd) : undefined
+    // Node
+    const nodePriKeyHex = privatekeysYaml.transport?.privateKey
+    const nodePriKeyEnc = nodePriKeyHex ? Crypto.encrypt(nodePriKeyHex, passwd) : undefined
+
+    /** 書き込み */
+    const newPrivatekeysYaml: PrivatekeysYaml = {}
+    if (caPriKeyEnc) {
+      newPrivatekeysYaml.main = {
+        privateKey: caPriKeyEnc,
+        publicKey: privatekeysYaml.main?.publicKey,
+        mainnetAddress: privatekeysYaml.main?.mainnetAddress,
+        testnetAddress: privatekeysYaml.main?.testnetAddress,
+      }
+    }
+    if (nodePriKeyEnc) {
+      newPrivatekeysYaml.transport = {
+        privateKey: nodePriKeyEnc,
+        publicKey: privatekeysYaml.transport?.publicKey,
+        mainnetAddress: privatekeysYaml.transport?.mainnetAddress,
+        testnetAddress: privatekeysYaml.transport?.testnetAddress,
+      }
+    }
+    try {
+      writeFileSync(outPrivatekyesPath, dump(newPrivatekeysYaml))
+    } catch {
+      throw Error(`ファイルの書き込みに失敗しました。: ${outPrivatekyesPath}`)
+    }
+  }
+
+  /**
+   * 秘密鍵復号化
+   * @param inPrivatekyesPath 入力秘密鍵保存ファイル
+   * @param outPrivatekyesPath 出力秘密鍵保存ファイル
+   * @param passwd パスワード
+   */
+  decrypt(inPrivatekyesPath: string, outPrivatekyesPath: string, passwd: string) {
+    /** privatekeysファイル読み込み */
+    let privatekeysYaml: PrivatekeysYaml
+    try {
+      const privatekeys = readFileSync(inPrivatekyesPath)
+      privatekeysYaml = load(privatekeys.toString()) as PrivatekeysYaml
+    } catch {
+      throw Error(`ファイルの読み込みに失敗しました。： ${inPrivatekyesPath}`)
+    }
+
+    /** 秘密鍵復号 */
+    // CA
+    let caPriKeyHex = ''
+    const caPriKeyEnc = privatekeysYaml.main?.privateKey ?? undefined
+    if (caPriKeyEnc) {
+      const caPriKeyDec = Crypto.decrypt(caPriKeyEnc, passwd)
+      caPriKeyHex = caPriKeyDec !== '' ? caPriKeyDec : caPriKeyEnc
+      if (caPriKeyHex.length !== 64) {
+        throw Error('平文CA秘密鍵の長さが64桁ではありません。')
+      }
+    }
+    // Node
+    let nodePriKeyHex = ''
+    const nodePriKeyEnc = privatekeysYaml.transport?.privateKey ?? undefined
+    if (nodePriKeyEnc) {
+      const nodePriKeyDec = Crypto.decrypt(nodePriKeyEnc, passwd)
+      nodePriKeyHex = nodePriKeyDec !== '' ? nodePriKeyDec : nodePriKeyEnc
+      if (nodePriKeyHex.length !== 64) {
+        throw Error('平文Node秘密鍵の長さが64桁ではありません。')
+      }
+    }
+
+    /** 書き込み */
+    const newPrivatekeysYaml: PrivatekeysYaml = {}
+    if (caPriKeyEnc) {
+      newPrivatekeysYaml.main = {
+        privateKey: caPriKeyHex,
+        publicKey: privatekeysYaml.main?.publicKey,
+        mainnetAddress: privatekeysYaml.main?.mainnetAddress,
+        testnetAddress: privatekeysYaml.main?.testnetAddress,
+      }
+    }
+    if (nodePriKeyEnc) {
+      newPrivatekeysYaml.transport = {
+        privateKey: nodePriKeyHex,
+        publicKey: privatekeysYaml.transport?.publicKey,
+        mainnetAddress: privatekeysYaml.transport?.mainnetAddress,
+        testnetAddress: privatekeysYaml.transport?.testnetAddress,
+      }
+    }
+    try {
+      writeFileSync(outPrivatekyesPath, dump(newPrivatekeysYaml))
+    } catch {
+      throw Error(`ファイルの書き込みに失敗しました。: ${outPrivatekyesPath}`)
+    }
+  }
+
+  /**
+   * パスワード変更
+   * @param inPrivatekyesPath 入力秘密鍵保存ファイル
+   * @param outPrivatekyesPath 出力秘密鍵保存ファイル
+   * @param oldPasswd 旧パスワード
+   * @param newPasswd 新パスワード
+   */
+  changePasswd(inPrivatekyesPath: string, outPrivatekyesPath: string, oldPasswd: string, newPasswd: string) {
+    this.decrypt(inPrivatekyesPath, outPrivatekyesPath, oldPasswd)
+    this.encrypt(outPrivatekyesPath, outPrivatekyesPath, newPasswd)
+  }
+
+  /**
    * 秘密鍵を暗号化してファイルに書き込む
    * @param writePrivatekyesPath 出力ファイル
    * @param caPriKeyPath CA秘密鍵パス
