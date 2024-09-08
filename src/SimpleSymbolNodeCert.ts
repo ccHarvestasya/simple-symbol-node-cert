@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { join, resolve } from 'path'
 import { SymbolNodePrivatekeys } from './SymbolNodePrivatekeys.js'
 import { Address, Network, SymbolFacade } from 'symbol-sdk/symbol'
-import { PublicKey } from 'symbol-sdk'
+import { Hash256, PublicKey } from 'symbol-sdk'
 
 export class SimpleSymbolNodeCert {
   /**
@@ -142,9 +142,10 @@ export class SimpleSymbolNodeCert {
 
   /**
    * Symbolノード証明書の期限と公開鍵表示
+   * @param [networkId='mainnet'] ネットワークID(mainnet/testnet/any number)
    * @param certDirPath 証明書ディレクトリパス
    */
-  public info(certDirPath: string = './cert') {
+  public info(networkId: string = 'mainnet', certDirPath: string = './cert') {
     /** OpenSSLバージョンチェック */
     this.checkVersionOpenSsl()
 
@@ -181,28 +182,31 @@ export class SimpleSymbolNodeCert {
       publicKeys.push(pubKey.toUpperCase())
     }
     /** アドレス */
-    const mainFacade = new SymbolFacade(Network.MAINNET)
-    const testFacade = new SymbolFacade(Network.TESTNET)
+    let facade: SymbolFacade
+    if (networkId === 'mainnet') {
+      facade = new SymbolFacade(Network.MAINNET)
+    } else if (networkId === 'testnet') {
+      facade = new SymbolFacade(Network.TESTNET)
+    } else {
+      const n = new Network('', Number(networkId), new Date(), new Hash256(new Uint8Array(32)))
+      facade = new SymbolFacade(n)
+    }
     // Node
-    const mainCaAddress = new Address(mainFacade.network.publicKeyToAddress(new PublicKey(publicKeys[0]))).toString()
-    const testCaAddress = new Address(testFacade.network.publicKeyToAddress(new PublicKey(publicKeys[0]))).toString()
+    const caAddress = new Address(facade.network.publicKeyToAddress(new PublicKey(publicKeys[0]))).toString()
     // CA
-    const mainNodeAddress = new Address(mainFacade.network.publicKeyToAddress(new PublicKey(publicKeys[1]))).toString()
-    const testNodeAddress = new Address(testFacade.network.publicKeyToAddress(new PublicKey(publicKeys[1]))).toString()
+    const nodeAddress = new Address(facade.network.publicKeyToAddress(new PublicKey(publicKeys[1]))).toString()
 
     console.log(`==================================================`)
     console.log(`CA Cert:`)
-    console.log(`       Start Date: ${startDates[1]}`)
-    console.log(`         End Date: ${endDates[1]}`)
-    console.log(`       Public Key: ${publicKeys[1]}`)
-    console.log(`  Mainnet Address: ${mainNodeAddress}`)
-    console.log(`  Testnet Address: ${testNodeAddress}`)
+    console.log(`  Start Date: ${startDates[1]}`)
+    console.log(`    End Date: ${endDates[1]}`)
+    console.log(`  Public Key: ${publicKeys[1]}`)
+    console.log(`     Address: ${nodeAddress}`)
     console.log(`Node Cert:`)
-    console.log(`       Start Date: ${startDates[0]}`)
-    console.log(`         End Date: ${endDates[0]}`)
-    console.log(`       Public Key: ${publicKeys[0]}`)
-    console.log(`  Mainnet Address: ${mainCaAddress}`)
-    console.log(`  Testnet Address: ${testCaAddress}`)
+    console.log(`  Start Date: ${startDates[0]}`)
+    console.log(`    End Date: ${endDates[0]}`)
+    console.log(`  Public Key: ${publicKeys[0]}`)
+    console.log(`     Address: ${caAddress}`)
     console.log(`==================================================`)
   }
 
