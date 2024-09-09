@@ -3,8 +3,6 @@ import { Crypto } from './Crypto.js'
 import { dump, load } from 'js-yaml'
 import { PrivatekeysYaml } from './ModelPrivatekeysYaml.js'
 import { execSync } from 'child_process'
-import { Address, Network, SymbolFacade } from 'symbol-sdk/symbol'
-import { PublicKey } from 'symbol-sdk'
 
 export class SymbolNodePrivatekeys {
   /**
@@ -37,16 +35,12 @@ export class SymbolNodePrivatekeys {
       newPrivatekeysYaml.main = {
         privateKey: caPriKeyEnc,
         publicKey: privatekeysYaml.main?.publicKey,
-        mainnetAddress: privatekeysYaml.main?.mainnetAddress,
-        testnetAddress: privatekeysYaml.main?.testnetAddress,
       }
     }
     if (nodePriKeyEnc) {
       newPrivatekeysYaml.transport = {
         privateKey: nodePriKeyEnc,
         publicKey: privatekeysYaml.transport?.publicKey,
-        mainnetAddress: privatekeysYaml.transport?.mainnetAddress,
-        testnetAddress: privatekeysYaml.transport?.testnetAddress,
       }
     }
     try {
@@ -100,16 +94,12 @@ export class SymbolNodePrivatekeys {
       newPrivatekeysYaml.main = {
         privateKey: caPriKeyHex,
         publicKey: privatekeysYaml.main?.publicKey,
-        mainnetAddress: privatekeysYaml.main?.mainnetAddress,
-        testnetAddress: privatekeysYaml.main?.testnetAddress,
       }
     }
     if (nodePriKeyEnc) {
       newPrivatekeysYaml.transport = {
         privateKey: nodePriKeyHex,
         publicKey: privatekeysYaml.transport?.publicKey,
-        mainnetAddress: privatekeysYaml.transport?.mainnetAddress,
-        testnetAddress: privatekeysYaml.transport?.testnetAddress,
       }
     }
     try {
@@ -161,29 +151,15 @@ export class SymbolNodePrivatekeys {
     let nodePubKeyHex = Buffer.from(nodePubKeyBase64, 'base64').toString('hex').toUpperCase()
     nodePubKeyHex = nodePubKeyHex.substring(nodePubKeyHex.length - 64, nodePubKeyHex.length)
 
-    /** アドレス */
-    const mainFacade = new SymbolFacade(Network.MAINNET)
-    const testFacade = new SymbolFacade(Network.TESTNET)
-    // CA
-    const mainCaAddress = new Address(mainFacade.network.publicKeyToAddress(new PublicKey(caPubKeyHex))).toString()
-    const testCaAddress = new Address(testFacade.network.publicKeyToAddress(new PublicKey(caPubKeyHex))).toString()
-    // Node
-    const mainNodeAddress = new Address(mainFacade.network.publicKeyToAddress(new PublicKey(nodePubKeyHex))).toString()
-    const testNodeAddress = new Address(testFacade.network.publicKeyToAddress(new PublicKey(nodePubKeyHex))).toString()
-
     /** privatekeysファイル保存 */
     const privatekeysYaml: PrivatekeysYaml = {
       main: {
         privateKey: caPriKeyEnc,
         publicKey: caPubKeyHex,
-        mainnetAddress: mainCaAddress,
-        testnetAddress: testCaAddress,
       },
       transport: {
         privateKey: nodePriKeyEnc,
         publicKey: nodePubKeyHex,
-        mainnetAddress: mainNodeAddress,
-        testnetAddress: testNodeAddress,
       },
     }
     this.writeFile(writePrivatekyesPath, dump(privatekeysYaml))

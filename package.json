@@ -16,6 +16,9 @@
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
+    "version:major": "tsc && npm version major",
+    "version:minor": "tsc && npm version minor",
+    "version:patch": "tsc && npm version patch",
     "publish": "npm publish --access=public"
   },
   "devDependencies": {
