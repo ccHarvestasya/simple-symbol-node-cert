@@ -235,8 +235,15 @@ export class SimpleSymbolNodeCert {
     const nodeConfig = `[req]
 prompt = no
 distinguished_name = dn
+x509_extensions = x509_v3
+
 [dn]
 CN = ${nodeName}
+
+[x509_v3]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
 `
     const configPath = join(outputDir, 'node.cnf')
     this.writeFile(configPath, nodeConfig)
@@ -271,9 +278,15 @@ commonName = supplied
 [req]
 prompt = no
 distinguished_name = dn
+x509_extensions = x509_v3
 
 [dn]
 CN = ${caName}
+
+[x509_v3]
+basicConstraints = critical,CA:TRUE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
 `
     const configPath = join(outputDir, 'ca.cnf')
     this.writeFile(configPath, caConfig)
@@ -301,7 +314,8 @@ CN = ${caName}
         `-new ` +
         `-x509 ` +
         `-days ${days} ` +
-        `-out ca.crt.pem`,
+        `-out ca.crt.pem ` +
+        `-extensions x509_v3`,
       {
         cwd: outputDir,
       }
@@ -337,7 +351,8 @@ CN = ${caName}
         `-notext ` +
         `-batch ` +
         `-in node.csr.pem ` +
-        `-out node.crt.pem`,
+        `-out node.crt.pem ` +
+        `-extensions x509_v3`,
       {
         cwd: outputDir,
       }
@@ -390,8 +405,8 @@ CN = ${caName}
     }
     const regex = /^OpenSSL +([^ ]*) /
     const match = versionOutput.match(regex)
-    const reqMinVer = '1.1.0'
-    const reqMaxVer = '3.2.0'
+    const reqMinVer = '3.0.0'
+    const reqMaxVer = '9.9.9'
     if (match === null || (reqMinVer >= match[1] && match[1] >= reqMaxVer)) {
       // console.log('Windowsの場合 -> https://slproweb.com/products/Win32OpenSSL.html')
       throw Error(`requires openssl version: ${reqMinVer} < ver < ${reqMaxVer}`)

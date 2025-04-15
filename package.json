@@ -1,7 +1,7 @@
 {
   "name": "simple-symbol-node-cert",
   "version": "1.2.0",
-  "author": "Mimosa Harvestasya @MimosaHrvsty",
+  "author": "Mimosa Harvestasya @ccHarvestasya",
   "license": "MIT",
   "homepage": "https://github.com/ccHarvestasya/simple-symbol-node-cert",
   "bugs": "https://github.com/ccHarvestasya/simple-symbol-node-cert/issues",
@@ -22,22 +22,22 @@
     "publish": "npm publish --access=public"
   },
   "devDependencies": {
-    "@types/crypto-js": "^4",
-    "@types/eslint": "^9",
-    "@types/js-yaml": "^4",
-    "@types/node": "^22.0.0",
+    "@types/crypto-js": "^4.2.2",
+    "@types/eslint": "^9.6.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.14.1",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "eslint": "8.56",
+    "eslint": "8.56.0",
     "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
-    "tsx": "^4.16.3",
-    "typescript": "^5.5.4"
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
     "js-yaml": "^4.1.0",
-    "symbol-sdk": "^3.2.2"
+    "symbol-sdk": "^3.2.3"
   },
   "volta": {
     "node": "18.19.1",
