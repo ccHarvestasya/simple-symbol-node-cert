@@ -235,15 +235,9 @@ export class SimpleSymbolNodeCert {
     const nodeConfig = `[req]
 prompt = no
 distinguished_name = dn
-x509_extensions = x509_v3
 
 [dn]
 CN = ${nodeName}
-
-[x509_v3]
-basicConstraints = CA:FALSE
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid,issuer
 `
     const configPath = join(outputDir, 'node.cnf')
     this.writeFile(configPath, nodeConfig)
@@ -278,15 +272,20 @@ commonName = supplied
 [req]
 prompt = no
 distinguished_name = dn
-x509_extensions = x509_v3
+x509_extensions = x509_v3_ca
 
 [dn]
 CN = ${caName}
 
-[x509_v3]
+[x509_v3_ca]
 basicConstraints = critical,CA:TRUE
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
+
+[x509_v3_node]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
 `
     const configPath = join(outputDir, 'ca.cnf')
     this.writeFile(configPath, caConfig)
@@ -315,7 +314,7 @@ authorityKeyIdentifier = keyid:always,issuer
         `-x509 ` +
         `-days ${days} ` +
         `-out ca.crt.pem ` +
-        `-extensions x509_v3`,
+        `-extensions x509_v3_ca`,
       {
         cwd: outputDir,
       }
@@ -352,7 +351,7 @@ authorityKeyIdentifier = keyid:always,issuer
         `-batch ` +
         `-in node.csr.pem ` +
         `-out node.crt.pem ` +
-        `-extensions x509_v3`,
+        `-extensions x509_v3_node`,
       {
         cwd: outputDir,
       }
